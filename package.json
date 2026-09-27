@@ -4,6 +4,7 @@
   "description": "A fake LINE Messaging API and chat page for local development and tests",
   "type": "module",
   "private": true,
+  "packageManager": "pnpm@11.5.0",
   "engines": { "node": ">=20.6" },
   "scripts": {
     "start": "node --env-file-if-exists=.env server.mjs",

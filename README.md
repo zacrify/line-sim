@@ -10,14 +10,16 @@ A fake LINE Messaging API for local development and tests. You chat as your bot'
 
 ```bash
 cp .env.example .env   # set WEBHOOK_URL and CHANNEL_SECRET
-npm start              # http://localhost:5530
+pnpm start             # http://localhost:5531
 ```
 
-Open http://localhost:5530. Add a chat. Type a message as the user.
+Open http://localhost:5531. Add a chat. Type a message as the user.
+
+The default port is `5531`. To use another port, set `PORT` in `.env`, or run `PORT=5540 pnpm start`. If you change the port, change your app's LINE API base URL to match.
 
 ## Connect your app
 
-1. **Point your app's LINE API base URL at the simulator.** Use it for both `https://api.line.me` and `https://api-data.line.me`. Example: `http://localhost:5530`.
+1. **Point your app's LINE API base URL at the simulator.** Use it for both `https://api.line.me` and `https://api-data.line.me`. Example: `http://localhost:5531`.
 2. **Give the simulator your webhook URL and channel secret.** Use the same secret your app checks `x-line-signature` with.
    - One channel: set `WEBHOOK_URL` and `CHANNEL_SECRET` in `.env`.
    - More channels: set `CHANNELS` to a JSON array (see `.env.example`).
@@ -70,21 +72,21 @@ Your app must return 2xx. If it does not, the page shows the status and body.
 
 ```bash
 # start a chat, and keep its "id"
-curl -s -X POST localhost:5530/sim/chats -d '{"kind":"user","name":"สมชาย"}'
+curl -s -X POST localhost:5531/sim/chats -d '{"kind":"user","name":"สมชาย"}'
 
 # send a message as that user (your app gets the webhook)
-curl -s -X POST localhost:5530/sim/chats/<id>/messages -d '{"text":"สวัสดี"}'
+curl -s -X POST localhost:5531/sim/chats/<id>/messages -d '{"text":"สวัสดี"}'
 # → {"status":200,"error":null}
 
 # send a file: data is base64
-curl -s -X POST localhost:5530/sim/chats/<id>/messages \
+curl -s -X POST localhost:5531/sim/chats/<id>/messages \
   -d "{\"file\":{\"name\":\"quote.pdf\",\"type\":\"application/pdf\",\"data\":\"$(base64 -i quote.pdf)\"}}"
 
 # see what your app replied
-curl -s localhost:5530/sim/chats
+curl -s localhost:5531/sim/chats
 
 # clear all chats between tests
-curl -s -X DELETE localhost:5530/sim/chats
+curl -s -X DELETE localhost:5531/sim/chats
 ```
 
 ## Limits
@@ -95,5 +97,5 @@ curl -s -X DELETE localhost:5530/sim/chats
 ## Develop
 
 ```bash
-npm test   # node:test, no install needed
+pnpm test  # node:test, no install needed
 ```

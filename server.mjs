@@ -188,7 +188,7 @@ export function createSim(channelList = []) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const port = Number(process.env.PORT ?? 5530);
+  const port = Number(process.env.PORT ?? 5531);
   const channels = channelsFromEnv(process.env);
   createSim(channels).listen(port, () => {
     const base = `http://localhost:${port}`;
