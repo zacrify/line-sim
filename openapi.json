@@ -1,0 +1,383 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LINE Simulator",
+    "version": "1.0.0",
+    "description": "A fake LINE Messaging API for local development and tests.\n\n**Integrate your app in two steps:**\n1. Set your app's LINE API base URL (both `api.line.me` and `api-data.line.me`) to this server.\n2. Register a channel whose `webhookUrl` points at your app's LINE webhook, with the same channel secret your app verifies against (env `WEBHOOK_URL` + `CHANNEL_SECRET`, or `POST /sim/channels`).\n\nThen chat as a user on the page at `/`, or drive it from tests with the `/sim` endpoints. The simulator POSTs signed webhooks to your app (see **webhooks**). Access tokens are not checked. All state is in memory."
+  },
+  "tags": [
+    { "name": "LINE Messaging API", "description": "The LINE endpoints your app calls, same paths and shapes as the real API." },
+    { "name": "Simulator", "description": "Control the simulator: channels, chats, and sending messages as a user." }
+  ],
+  "paths": {
+    "/v2/bot/message/push": {
+      "post": {
+        "tags": ["LINE Messaging API"],
+        "summary": "Push messages to a user or group",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PushRequest" } } }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/Sent" } }
+      }
+    },
+    "/v2/bot/message/reply": {
+      "post": {
+        "tags": ["LINE Messaging API"],
+        "summary": "Reply with the replyToken from a webhook",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReplyRequest" } } }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Sent" },
+          "400": { "description": "The reply token is unknown or already used." }
+        }
+      }
+    },
+    "/v2/bot/chat/markAsRead": {
+      "post": {
+        "tags": ["LINE Messaging API"],
+        "summary": "Mark a chat as read (always succeeds)",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "properties": { "markAsReadToken": { "type": "string" } } }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+      }
+    },
+    "/v2/bot/profile/{userId}": {
+      "get": {
+        "tags": ["LINE Messaging API"],
+        "summary": "Get a 1:1 user's profile",
+        "parameters": [{ "$ref": "#/components/parameters/userId" }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Profile" } } } },
+          "404": { "description": "No 1:1 chat with this userId." }
+        }
+      }
+    },
+    "/v2/bot/group/{groupId}/summary": {
+      "get": {
+        "tags": ["LINE Messaging API"],
+        "summary": "Get a group's name",
+        "parameters": [{ "$ref": "#/components/parameters/groupId" }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "groupId": { "type": "string" }, "groupName": { "type": "string" } }
+                }
+              }
+            }
+          },
+          "404": { "description": "No such group." }
+        }
+      }
+    },
+    "/v2/bot/group/{groupId}/member/{userId}": {
+      "get": {
+        "tags": ["LINE Messaging API"],
+        "summary": "Get a group member's profile",
+        "parameters": [{ "$ref": "#/components/parameters/groupId" }, { "$ref": "#/components/parameters/userId" }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Profile" } } } },
+          "404": { "description": "This user has not sent a message in the group yet." }
+        }
+      }
+    },
+    "/v2/bot/message/{messageId}/content": {
+      "get": {
+        "tags": ["LINE Messaging API"],
+        "summary": "Download an image or file a user sent",
+        "parameters": [{ "name": "messageId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "The file bytes, with the file's own Content-Type.",
+            "content": { "*/*": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "404": { "description": "No such content (the simulator was restarted, or the id is wrong)." }
+        }
+      }
+    },
+    "/sim/channels": {
+      "get": {
+        "tags": ["Simulator"],
+        "summary": "List channels (secrets hidden)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Channel" } } } }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Simulator"],
+        "summary": "Add or replace a channel (where webhooks go)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "webhookUrl", "secret"],
+                "properties": {
+                  "name": { "type": "string", "example": "default" },
+                  "webhookUrl": { "type": "string", "example": "http://localhost:3000/api/line/webhook" },
+                  "secret": { "type": "string", "description": "Your app's LINE channel secret. Webhooks are signed with it." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Saved", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Channel" } } } },
+          "400": { "description": "name or webhookUrl is missing." }
+        }
+      }
+    },
+    "/sim/chats": {
+      "get": {
+        "tags": ["Simulator"],
+        "summary": "List chats with all their messages",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Chat" } } } }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Simulator"],
+        "summary": "Start a 1:1 chat or a group",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": { "type": "string", "enum": ["user", "group"], "default": "user" },
+                  "channel": { "type": "string", "description": "Channel name. Default: the first channel." },
+                  "name": { "type": "string", "description": "The user's display name, or the group's name." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Chat" } } } } }
+      },
+      "delete": {
+        "tags": ["Simulator"],
+        "summary": "Delete all chats and files (channels stay)",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/sim/chats/{chatId}/messages": {
+      "post": {
+        "tags": ["Simulator"],
+        "summary": "Send a message as the user: signs and POSTs a webhook to your app",
+        "parameters": [{ "name": "chatId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Send `text`, or `file`. A file with an image/* type becomes an image message; anything else becomes a file message.",
+                "properties": {
+                  "text": { "type": "string", "example": "สวัสดีครับ" },
+                  "sender": { "type": "string", "description": "Groups only: who is typing. Each name gets its own userId." },
+                  "file": {
+                    "type": "object",
+                    "required": ["name", "type", "data"],
+                    "properties": {
+                      "name": { "type": "string", "example": "quote.pdf" },
+                      "type": { "type": "string", "example": "application/pdf" },
+                      "data": { "type": "string", "contentEncoding": "base64" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What your app answered. `error` is null when your app returned 2xx.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "integer", "description": "Your app's HTTP status. 0 when it could not be reached." },
+                    "error": { "type": ["string", "null"] }
+                  }
+                },
+                "example": { "status": 200, "error": null }
+              }
+            }
+          },
+          "404": { "description": "No such chat." }
+        }
+      }
+    }
+  },
+  "webhooks": {
+    "message": {
+      "post": {
+        "summary": "What the simulator POSTs to your channel's webhookUrl",
+        "description": "Header `x-line-signature` is base64(HMAC-SHA256(channel secret, raw body)), the same as LINE. Verify it against the raw body before you parse it.",
+        "parameters": [{ "name": "x-line-signature", "in": "header", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WebhookBody" } } }
+        },
+        "responses": { "200": { "description": "Return 2xx, or the simulator shows your error on the page." } }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "userId": { "name": "userId", "in": "path", "required": true, "schema": { "type": "string", "example": "U4af4980629..." } },
+      "groupId": { "name": "groupId", "in": "path", "required": true, "schema": { "type": "string", "example": "Ca56f9442..." } }
+    },
+    "responses": {
+      "Sent": {
+        "description": "OK",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "sentMessages": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" } } } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Message": {
+        "type": "object",
+        "description": "Any LINE message object. The page shows `text`, `altText`, or an image from `originalContentUrl`.",
+        "required": ["type"],
+        "properties": {
+          "type": { "type": "string", "example": "text" },
+          "text": { "type": "string" },
+          "altText": { "type": "string" },
+          "originalContentUrl": { "type": "string" },
+          "previewImageUrl": { "type": "string" }
+        }
+      },
+      "PushRequest": {
+        "type": "object",
+        "required": ["to", "messages"],
+        "properties": {
+          "to": { "type": "string", "description": "A userId or groupId." },
+          "messages": { "type": "array", "items": { "$ref": "#/components/schemas/Message" } }
+        },
+        "example": { "to": "U4af4980629...", "messages": [{ "type": "text", "text": "ราคา 1,200 บาทครับ" }] }
+      },
+      "ReplyRequest": {
+        "type": "object",
+        "required": ["replyToken", "messages"],
+        "properties": {
+          "replyToken": { "type": "string" },
+          "messages": { "type": "array", "items": { "$ref": "#/components/schemas/Message" } }
+        }
+      },
+      "Profile": {
+        "type": "object",
+        "properties": { "userId": { "type": "string" }, "displayName": { "type": "string" } }
+      },
+      "Channel": {
+        "type": "object",
+        "properties": { "name": { "type": "string" }, "webhookUrl": { "type": "string" }, "hasSecret": { "type": "boolean" } }
+      },
+      "Chat": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "A userId (U...) for 1:1, a groupId (C...) for a group." },
+          "kind": { "type": "string", "enum": ["user", "group"] },
+          "channel": { "type": "string" },
+          "name": { "type": "string" },
+          "members": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Group member userId → name." },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "from": { "type": "string", "enum": ["user", "bot"] },
+                "name": { "type": "string" },
+                "text": { "type": "string" },
+                "media": { "type": "object", "properties": { "url": { "type": "string" }, "image": { "type": "boolean" } } },
+                "at": { "type": "string", "format": "date-time" }
+              }
+            }
+          }
+        }
+      },
+      "WebhookBody": {
+        "type": "object",
+        "properties": {
+          "destination": { "type": "string" },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "const": "message" },
+                "mode": { "type": "string", "const": "active" },
+                "webhookEventId": { "type": "string" },
+                "deliveryContext": { "type": "object", "properties": { "isRedelivery": { "type": "boolean" } } },
+                "timestamp": { "type": "integer" },
+                "replyToken": { "type": "string" },
+                "source": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "enum": ["user", "group"] },
+                    "userId": { "type": "string" },
+                    "groupId": { "type": "string" }
+                  }
+                },
+                "message": {
+                  "type": "object",
+                  "description": "text: `text`, `quoteToken`. image: `contentProvider.type` = \"line\" (download it from /v2/bot/message/{id}/content). file: `fileName`, `fileSize` (download the same way).",
+                  "properties": {
+                    "type": { "type": "string", "enum": ["text", "image", "file"] },
+                    "id": { "type": "string" },
+                    "text": { "type": "string" },
+                    "quoteToken": { "type": "string" },
+                    "contentProvider": { "type": "object", "properties": { "type": { "type": "string", "const": "line" } } },
+                    "fileName": { "type": "string" },
+                    "fileSize": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "example": {
+          "destination": "Usimulator",
+          "events": [
+            {
+              "type": "message",
+              "mode": "active",
+              "webhookEventId": "3f1c2d9e-...",
+              "deliveryContext": { "isRedelivery": false },
+              "timestamp": 1790000000000,
+              "replyToken": "a1b2c3...",
+              "source": { "type": "user", "userId": "U4af4980629..." },
+              "message": { "type": "text", "id": "17900000000001234", "text": "ขอราคาหน่อยครับ", "quoteToken": "9b2e..." }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

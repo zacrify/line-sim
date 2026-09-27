@@ -1,0 +1,12 @@
+{
+  "name": "line-sim",
+  "version": "1.0.0",
+  "description": "A fake LINE Messaging API and chat page for local development and tests",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20.6" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "test": "node --test"
+  }
+}
